@@ -3,13 +3,13 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from service import evaluate_tourist
 
-app = FastAPI(title="Tourist Monitor AI")
+app = FastAPI(title="Tourist Safety Monitor API")
 
 class TouristData(BaseModel):
     tourist_id: str
     latitude: float
     longitude: float
-    timestamp: str
+    timestamp: str  # ISO format string
     dwell_time: float = 0
     age: int = 30
     disabilities: bool = False
@@ -18,11 +18,12 @@ class TouristData(BaseModel):
 @app.post("/evaluate")
 async def evaluate(data: TouristData):
     """
-    Evaluate a tourist's safety based on location, speed, dwell time, and anomalies.
+    Endpoint to evaluate a tourist's safety score and risk based on their location data.
+    Returns risk level, alerts, and safety score.
     """
     result = evaluate_tourist(data.dict())
     return result
 
 @app.get("/")
-def health_check():
-    return {"status": "Tourist Monitor AI is running"}
+async def root():
+    return {"message": "Tourist Monitor AI is running!"}

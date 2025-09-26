@@ -32,7 +32,7 @@ def haversine_distance(lat1, lon1, lat2, lon2):
 
 # ---------------- Routes ----------------
 @app.post("/evaluate")
-async def evaluate(req: Request):
+async def evaluate_tourist(req: Request):
     try:
         data = await req.json()
 

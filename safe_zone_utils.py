@@ -1,6 +1,6 @@
-# safe_zone_utils.py
 from supabase import create_client
 import os
+from typing import List, Tuple
 
 # ---------------- Supabase setup ----------------
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://sggckjpnftehvvqwanei.supabase.co")
@@ -17,17 +17,14 @@ LOCATION_INFO = {
     "custom_safe_spot": {"min_time": 10, "max_time": 180}
 }
 
-
 def get_location_info(location_type: str) -> Tuple[int, int]:
     """Return min and max dwell time for a given location type."""
     info = LOCATION_INFO.get(location_type, {"min_time": 5, "max_time": 60})
     return info["min_time"], info["max_time"]
 
-
 def dwell_time_penalty(dwell_time: float, min_time: float, max_time: float) -> int:
     """Return 0 if dwell_time is within limits, 1 if outside."""
     return 0 if min_time <= dwell_time <= max_time else 1
-
 
 def get_user_safe_zones(tourist_id: str) -> List[Tuple[float, float, str]]:
     """Fetch safe zones for a tourist from Supabase."""

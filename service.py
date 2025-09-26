@@ -45,7 +45,7 @@ async def evaluate_tourist(req: Request):
         # ---------------- Restricted zones ----------------
         restricted_alerts = []
         if 43.651 < latitude < 43.652 and -79.348 < longitude < -79.346:
-            restricted_alerts.append("⚠️ Entered restricted area")
+            restricted_alerts.append("Entered restricted area")
 
         # ---------------- Safe zones ----------------
         safe_zones = [{"lat": 43.6515, "lon": -79.347, "type": "hotel"}]
@@ -56,12 +56,12 @@ async def evaluate_tourist(req: Request):
                 min_time, max_time = 30, 720
                 if dwell_time < min_time or dwell_time > max_time:
                     dwell_alerts.append(
-                        f"⚠️ Dwell time anomaly at {zone['type']} (spent {dwell_time} mins)"
+                        f" Dwell time anomaly at {zone['type']} (spent {dwell_time} mins)"
                     )
 
         # ---------------- Combine alerts ----------------
         combined_alerts = restricted_alerts + dwell_alerts
-        combined_message = " | ".join(combined_alerts) if combined_alerts else "⚠️ SOS triggered by user"
+        combined_message = " | ".join(combined_alerts) if combined_alerts else "SOS triggered by user"
 
         # ---------------- Insert into Supabase ----------------
         supabase_response = supabase.table("alerts").insert({
@@ -84,7 +84,7 @@ async def evaluate_tourist(req: Request):
             "tourist_id": tourist_id,
             "latitude": latitude,
             "longitude": longitude,
-            "alerts": combined_alerts if combined_alerts else ["⚠️ SOS triggered by user"],
+            "alerts": combined_alerts if combined_alerts else ["SOS triggered by user"],
             "safety_score": 0,
             "risk_level": "Critical",
             "status": 2

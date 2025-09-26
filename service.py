@@ -42,7 +42,7 @@ serve(async (req) => {
   if (latitude && longitude) {
     // example: if inside a bounding box
     if (latitude > 43.651 && latitude < 43.652 && longitude > -79.348 && longitude < -79.346) {
-      restrictedAlerts.push("⚠️ Entered restricted area");
+      restrictedAlerts.push("Entered restricted area");
     }
   }
 

@@ -6,14 +6,11 @@ import math
 
 # ---------------- Supabase setup ----------------
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://sggckjpnftehvvqwanei.supabase.co")
-SUPABASE_KEY = os.environ.get(
-    "SUPABASE_KEY",
-    "<YOUR_SUPABASE_KEY>"
-)
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "<eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNnZ2NranBuZnRlaHZ2cXdhbmVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4MjcxODcsImV4cCI6MjA3NDQwMzE4N30.OuT0Jpc4J19q700masyC5QQxyNCRdk8Vv1zsiFk_Sqs>")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-
-def insert_alert(tourist_id: str, alert_type: str, message: str, safety_score: int, location_id=None, status=1, sent=1):
+def insert_alert(tourist_id: str, alert_type: str, message: str, safety_score: int,
+                 location_id=None, status=1, sent=1, disabilities="", health_conditions="", age=30):
     """
     Insert an alert into the database.
     status: 1 = completely dealt with, 2 = currently being dealt with
@@ -26,9 +23,25 @@ def insert_alert(tourist_id: str, alert_type: str, message: str, safety_score: i
         "message": message,
         "safety_score": safety_score,
         "status": status,
-        "sent": sent
+        "sent": sent,
+        "disabilities": disabilities,
+        "health_conditions": health_conditions,
+        "age": age
     }
     supabase.table("alerts").insert(data).execute()
+
+
+def haversine_distance(lat1, lon1, lat2, lon2):
+    """Returns distance in km between two coordinates."""
+    R = 6371
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    delta_phi = math.radians(lat2 - lat1)
+    delta_lambda = math.radians(lon2 - lon1)
+    a = math.sin(delta_phi / 2) ** 2 + \
+        math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
 
 
 def evaluate_tourist(data: dict):
@@ -40,7 +53,10 @@ def evaluate_tourist(data: dict):
     lat = data.get("latitude")
     lon = data.get("longitude")
     dwell_time = data.get("dwell_time", 0)
-    location_id = data.get("location_id")  # optional, if available
+    location_id = data.get("location_id")  # optional
+    disabilities = data.get("disabilities", "")
+    health_conditions = data.get("health_conditions", "")
+    age = data.get("age", 30)
 
     alerts = []
 
@@ -58,22 +74,39 @@ def evaluate_tourist(data: dict):
             if penalty:
                 alerts.append(f"⚠️ Dwell time anomaly at {zone_type} (spent {dwell_time} mins)")
 
-    # 3️⃣ Compute safety score
-    safety_score = max(0, 100 - len(alerts) * 25)  # each alert reduces score
+    # 3️⃣ Compute base safety score
+    safety_score = max(0, 100 - len(alerts) * 25)
+
+    # 4️⃣ Apply extra penalty for vulnerable tourists or age ≥70
+    multiplier = 1.5 if (disabilities.strip() or health_conditions.strip() or age >= 70) else 1.0
+    if alerts and multiplier > 1:
+        safety_score = max(0, int(safety_score / multiplier))
+        vuln_msgs = []
+        if disabilities.strip():
+            vuln_msgs.append(f"disabilities ({disabilities})")
+        if health_conditions.strip():
+            vuln_msgs.append(f"health conditions ({health_conditions})")
+        if age >= 70:
+            vuln_msgs.append(f"age ({age})")
+        alerts.append(f"⚠️ Vulnerable factors: {', '.join(vuln_msgs)} - higher risk applied")
+
+    # 5️⃣ Determine risk level
     risk_level = "Low" if safety_score > 75 else "Medium" if safety_score > 50 else "High"
 
-    # 4️⃣ Insert alerts into database (model-generated, sent=1)
-    for alert_msg in alerts:
-        alert_type = "Restricted Zone" if "restricted" in alert_msg.lower() else "Dwell Time Anomaly"
-        insert_alert(
-            tourist_id,
-            alert_type,
-            alert_msg,
-            safety_score,
-            location_id,
-            status=1,   # default: completely dealt with
-            sent=1      # model-generated
-        )
+    # 6️⃣ Insert a single alert into database with all issues combined
+    combined_alert_msg = " | ".join(alerts) if alerts else "No issues detected"
+    insert_alert(
+        tourist_id,
+        "Safety Evaluation",
+        combined_alert_msg,
+        safety_score,
+        location_id,
+        status=1,   # default: completely dealt with
+        sent=1,     # model-generated
+        disabilities=disabilities,
+        health_conditions=health_conditions,
+        age=age
+    )
 
     return {
         "tourist_id": tourist_id,
@@ -83,16 +116,3 @@ def evaluate_tourist(data: dict):
         "safety_score": safety_score,
         "risk_level": risk_level
     }
-
-
-def haversine_distance(lat1, lon1, lat2, lon2):
-    """Returns distance in km between two coordinates."""
-    R = 6371
-    phi1 = math.radians(lat1)
-    phi2 = math.radians(lat2)
-    delta_phi = math.radians(lat2 - lat1)
-    delta_lambda = math.radians(lon2 - lon1)
-    a = math.sin(delta_phi / 2) ** 2 + \
-        math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2) ** 2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return R * c

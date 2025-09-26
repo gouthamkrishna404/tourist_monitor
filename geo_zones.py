@@ -14,14 +14,14 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 def fetch_restricted_zones():
     """
     Fetch restricted zones from Supabase.
-    Each zone is stored as a list of {lat, lon} in 'coordinates' JSON column.
+    Each zone is stored as a list of {lat, lon} in 'polygon' JSON column.
     Returns list of Shapely Polygons.
     """
-    res = supabase.table("restricted_zones").select("coordinates").execute()
+    res = supabase.table("restricted_zones").select("polygon").execute()
     zones = []
     if res.data:
         for row in res.data:
-            coords = row.get("coordinates", [])
+            coords = row.get("polygon", [])
             if coords:
                 # Convert [{lat, lon}, ...] → [(lon, lat), ...] for Shapely
                 polygon_points = [(pt["lon"], pt["lat"]) for pt in coords]
@@ -34,7 +34,7 @@ def check_restricted(lat: float, lon: float):
     Check if the given latitude/longitude falls inside any restricted zone.
     Returns a list of alerts if inside a zone.
     """
-    point = Point(lon, lat)  # IMPORTANT: (x=lon, y=lat)
+    point = Point(lon, lat)  # (x=lon, y=lat)
     alerts = []
     zones = fetch_restricted_zones()
     for zone in zones:

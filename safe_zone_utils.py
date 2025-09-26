@@ -18,24 +18,19 @@ LOCATION_INFO = {
 }
 
 
-def get_location_info(location_type: str):
-    info = LOCATION_INFO.get(location_type)
-    if not info:
-        info = {"min_time": 5, "max_time": 60}  # default fallback
+def get_location_info(location_type: str) -> Tuple[int, int]:
+    """Return min and max dwell time for a given location type."""
+    info = LOCATION_INFO.get(location_type, {"min_time": 5, "max_time": 60})
     return info["min_time"], info["max_time"]
 
 
 def dwell_time_penalty(dwell_time: float, min_time: float, max_time: float) -> int:
-    """
-    Returns 0 if within limits, otherwise 1
-    """
+    """Return 0 if dwell_time is within limits, 1 if outside."""
     return 0 if min_time <= dwell_time <= max_time else 1
 
 
-def get_user_safe_zones(tourist_id: str):
-    """
-    Returns list of (lat, lon, type) tuples for this user's safe zones
-    """
+def get_user_safe_zones(tourist_id: str) -> List[Tuple[float, float, str]]:
+    """Fetch safe zones for a tourist from Supabase."""
     res = supabase.table("tourist_safe_zones").select("*").eq("tourist_id", tourist_id).execute()
     if res.data:
         return [(row["latitude"], row["longitude"], row["type"]) for row in res.data]

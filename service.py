@@ -1,101 +1,103 @@
-import { serve } from "https://deno.land/std@0.203.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.35.0";
+from fastapi import FastAPI, Request, HTTPException
+from supabase import create_client, Client
+import os
+import math
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL","https://sggckjpnftehvvqwanei.supabase.co")!;
-const SUPABASE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY","eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNnZ2NranBuZnRlaHZ2cXdhbmVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4MjcxODcsImV4cCI6MjA3NDQwMzE4N30.OuT0Jpc4J19q700masyC5QQxyNCRdk8Vv1zsiFk_Sqs")!; // Service key for insert
+# ---------------- Supabase setup ----------------
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://sggckjpnftehvvqwanei.supabase.co")
+SUPABASE_KEY = os.environ.get(
+    "SUPABASE_KEY",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNnZ2NranBuZnRlaHZ2cXdhbmVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4MjcxODcsImV4cCI6MjA3NDQwMzE4N30.OuT0Jpc4J19q700masyC5QQxyNCRdk8Vv1zsiFk_Sqs"
+)
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-serve(async (req) => {
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405 });
-  }
+app = FastAPI()
 
-  const data = await req.json();
+# ---------------- Helpers ----------------
+def haversine_distance(lat1, lon1, lat2, lon2):
+    """Compute Haversine distance in km"""
+    R = 6371
+    d_lat = math.radians(lat2 - lat1)
+    d_lon = math.radians(lon2 - lon1)
+    a = (
+        math.sin(d_lat / 2) ** 2
+        + math.cos(math.radians(lat1))
+        * math.cos(math.radians(lat2))
+        * math.sin(d_lon / 2) ** 2
+    )
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
 
-  const {
-    tourist_id,
-    latitude,
-    longitude,
-    dwell_time = 0,
-    location_id,
-    age,
-    disabilities,
-    health_conditions,
-  } = data;
 
-  // Helper to compute haversine distance in km
-  const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371;
-    const toRad = (v: number) => (v * Math.PI) / 180;
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
+# ---------------- Routes ----------------
+@app.post("/evaluate")
+async def evaluate(req: Request):
+    try:
+        data = await req.json()
 
-  // Dummy restricted zones check (replace with your logic)
-  const restrictedAlerts: string[] = [];
-  if (latitude && longitude) {
-    // example: if inside a bounding box
-    if (latitude > 43.651 && latitude < 43.652 && longitude > -79.348 && longitude < -79.346) {
-      restrictedAlerts.push("Entered restricted area");
-    }
-  }
+        tourist_id = data.get("tourist_id")
+        latitude = data.get("latitude")
+        longitude = data.get("longitude")
+        dwell_time = data.get("dwell_time", 0)
+        location_id = data.get("location_id")
+        age = data.get("age")
+        disabilities = data.get("disabilities")
+        health_conditions = data.get("health_conditions")
 
-  // Dummy safe zones (replace with DB fetch)
-  const safeZones: Array<{ lat: number; lon: number; type: string }> = [
-    { lat: 43.6515, lon: -79.347, type: "hotel" },
-  ];
+        # Restricted zones (dummy example)
+        restricted_alerts = []
+        if latitude and longitude:
+            if 43.651 < latitude < 43.652 and -79.348 < longitude < -79.346:
+                restricted_alerts.append("⚠️ Entered restricted area")
 
-  const dwellAlerts: string[] = [];
-  for (const zone of safeZones) {
-    const dist = haversineDistance(latitude, longitude, zone.lat, zone.lon);
-    if (dist <= 0.05) {
-      const minTime = 30;
-      const maxTime = 720;
-      if (dwell_time < minTime || dwell_time > maxTime) {
-        dwellAlerts.push(`Dwell time anomaly at ${zone.type} (spent ${dwell_time} mins)`);
-      }
-    }
-  }
+        # Safe zones (dummy example)
+        safe_zones = [{"lat": 43.6515, "lon": -79.347, "type": "hotel"}]
 
-  const combinedAlerts = [...restrictedAlerts, ...dwellAlerts];
-  const combinedMessage = combinedAlerts.length
-    ? combinedAlerts.join(" | ")
-    : "SOS triggered by user";
+        dwell_alerts = []
+        for zone in safe_zones:
+            dist = haversine_distance(latitude, longitude, zone["lat"], zone["lon"])
+            if dist <= 0.05:  # within 50m
+                min_time, max_time = 30, 720
+                if dwell_time < min_time or dwell_time > max_time:
+                    dwell_alerts.append(
+                        f"Dwell time anomaly at {zone['type']} (spent {dwell_time} mins)"
+                    )
 
-  // Insert alert into Supabase
-  const { error } = await supabase.from("alerts").insert({
-    tourist_id,
-    location_id,
-    alert_type: "Safety Evaluation",
-    message: combinedMessage,
-    safety_score: 0,
-    status: 2, // being dealt with
-    sent: 2,   // user-triggered
-    age,
-    disabilities,
-    health_conditions,
-  });
+        # Combine alerts
+        combined_alerts = restricted_alerts + dwell_alerts
+        combined_message = (
+            " | ".join(combined_alerts) if combined_alerts else "SOS triggered by user"
+        )
 
-  if (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
-  }
+        # Insert into Supabase
+        response = supabase.table("alerts").insert(
+            {
+                "tourist_id": tourist_id,
+                "location_id": location_id,
+                "alert_type": "Safety Evaluation",
+                "message": combined_message,
+                "safety_score": 0,
+                "status": 2,  # being dealt with
+                "sent": 2,    # user-triggered
+                "age": age,
+                "disabilities": disabilities,
+                "health_conditions": health_conditions,
+            }
+        ).execute()
 
-  return new Response(
-    JSON.stringify({
-      tourist_id,
-      latitude,
-      longitude,
-      alerts: combinedAlerts,
-      safety_score: 0,
-      risk_level: "Critical",
-      status: 2,
-    }),
-    { headers: { "Content-Type": "application/json" } }
-  );
-});
+        if response.get("error"):
+            raise HTTPException(status_code=500, detail=response["error"]["message"])
+
+        return {
+            "tourist_id": tourist_id,
+            "latitude": latitude,
+            "longitude": longitude,
+            "alerts": combined_alerts,
+            "safety_score": 0,
+            "risk_level": "Critical",
+            "status": 2,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

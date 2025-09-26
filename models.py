@@ -16,9 +16,3 @@ def predict_anomaly(lat, lon, speed=0, dwell=0):
     """
     X_scaled = scaler.transform([[lat, lon, speed, dwell]])
     return model.predict(X_scaled)[0]
-
-
-# Example usage:
-if __name__ == "__main__":
-    result = predict_anomaly(43.65107, -79.347015, speed=5, dwell=10)
-    print("Anomaly prediction:", result)

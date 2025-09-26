@@ -58,7 +58,7 @@ serve(async (req) => {
       const minTime = 30;
       const maxTime = 720;
       if (dwell_time < minTime || dwell_time > maxTime) {
-        dwellAlerts.push(`⚠️ Dwell time anomaly at ${zone.type} (spent ${dwell_time} mins)`);
+        dwellAlerts.push(`Dwell time anomaly at ${zone.type} (spent ${dwell_time} mins)`);
       }
     }
   }
@@ -66,7 +66,7 @@ serve(async (req) => {
   const combinedAlerts = [...restrictedAlerts, ...dwellAlerts];
   const combinedMessage = combinedAlerts.length
     ? combinedAlerts.join(" | ")
-    : "⚠️ SOS triggered by user";
+    : "SOS triggered by user";
 
   // Insert alert into Supabase
   const { error } = await supabase.from("alerts").insert({

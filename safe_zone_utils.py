@@ -12,9 +12,9 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Static location info
 LOCATION_INFO = {
-    "general": {"min_time": 5, "max_time": 60},
-    "hotel": {"min_time": 30, "max_time": 720},
-    "custom_safe_spot": {"min_time": 10, "max_time": 180}
+    "general": {"min_time": 0, "max_time": 180},
+    "hotel": {"min_time": 0, "max_time": 1440},
+    "custom_safe_spot": {"min_time": 0, "max_time": 720}
 }
 
 def get_location_info(location_type: str) -> Tuple[int, int]:

@@ -1,6 +1,29 @@
 from geo_zones import check_restricted
 from safe_zone_utils import get_user_safe_zones, get_location_info, dwell_time_penalty
+from supabase import create_client
+import os
 import math
+
+# ---------------- Supabase setup ----------------
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://sggckjpnftehvvqwanei.supabase.co")
+SUPABASE_KEY = os.environ.get(
+    "SUPABASE_KEY",
+    "<eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNnZ2NranBuZnRlaHZ2cXdhbmVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4MjcxODcsImV4cCI6MjA3NDQwMzE4N30.OuT0Jpc4J19q700masyC5QQxyNCRdk8Vv1zsiFk_Sqs>"
+)
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+def insert_alert(tourist_id: str, alert_type: str, message: str, safety_score: int, location_id=None, status=1):
+    """Insert an alert into the database."""
+    data = {
+        "tourist_id": tourist_id,
+        "location_id": location_id,
+        "alert_type": alert_type,
+        "message": message,
+        "safety_score": safety_score,
+        "status": status
+    }
+    supabase.table("alerts").insert(data).execute()
+
 
 def evaluate_tourist(data: dict):
     """
@@ -11,10 +34,11 @@ def evaluate_tourist(data: dict):
     lat = data.get("latitude")
     lon = data.get("longitude")
     dwell_time = data.get("dwell_time", 0)
+    location_id = data.get("location_id")  # optional, if available
 
     alerts = []
 
-    # 1️⃣ Check restricted zones (could be multiple zones)
+    # 1️⃣ Check restricted zones
     restricted_alerts = check_restricted(lat, lon)
     alerts.extend(restricted_alerts)
 
@@ -22,8 +46,7 @@ def evaluate_tourist(data: dict):
     safe_zones = get_user_safe_zones(tourist_id)
     for zone_lat, zone_lon, zone_type in safe_zones:
         distance = haversine_distance(lat, lon, zone_lat, zone_lon)
-        # Consider within 50 meters as being in that safe zone
-        if distance <= 0.05:
+        if distance <= 0.05:  # within 50 meters
             min_time, max_time = get_location_info(zone_type)
             penalty = dwell_time_penalty(dwell_time, min_time, max_time)
             if penalty:
@@ -32,6 +55,11 @@ def evaluate_tourist(data: dict):
     # 3️⃣ Compute safety score
     safety_score = max(0, 100 - len(alerts) * 25)  # each alert reduces score
     risk_level = "Low" if safety_score > 75 else "Medium" if safety_score > 50 else "High"
+
+    # 4️⃣ Insert alerts into database
+    for alert_msg in alerts:
+        alert_type = "Restricted Zone" if "restricted" in alert_msg.lower() else "Dwell Time Anomaly"
+        insert_alert(tourist_id, alert_type, alert_msg, safety_score, location_id)
 
     return {
         "tourist_id": tourist_id,
@@ -44,15 +72,12 @@ def evaluate_tourist(data: dict):
 
 
 def haversine_distance(lat1, lon1, lat2, lon2):
-    """
-    Returns distance in km between two coordinates
-    """
-    R = 6371  # Earth radius in km
+    """Returns distance in km between two coordinates."""
+    R = 6371
     phi1 = math.radians(lat1)
     phi2 = math.radians(lat2)
     delta_phi = math.radians(lat2 - lat1)
     delta_lambda = math.radians(lon2 - lon1)
-
     a = math.sin(delta_phi / 2) ** 2 + \
         math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2) ** 2
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))

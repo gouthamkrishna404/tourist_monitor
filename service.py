@@ -31,53 +31,58 @@ def insert_alert(tourist_id: str, alert_type: str, message: str, safety_score: i
     supabase.table("alerts").insert(data).execute()
 
 
-def evaluate_tourist(data):
-    # Extract data
-    age = data.get("age", 30)
-    disabilities = data.get("disabilities", "none").lower()
-    health_conditions = data.get("health_conditions", "none").lower()
-    speed = data.get("speed", 0)
-    dwell = data.get("dwell_time", 0)
-    
-    # Base safety score
-    safety_score = 100
+def evaluate_tourist(data: dict):
+    """
+    Main logic to evaluate tourist risk.
+    Returns structured dict with risk, alerts, and safety score.
+    """
+    tourist_id = data.get("tourist_id")
+    lat = data.get("latitude")
+    lon = data.get("longitude")
+    dwell_time = data.get("dwell_time", 0)
+    location_id = data.get("location_id")  # optional, if available
+
     alerts = []
 
-    # Example: simple anomaly checks
-    if speed > 50:
-        alerts.append("Unusually high speed")
-        safety_score -= 10
+    # 1️⃣ Check restricted zones
+    restricted_alerts = check_restricted(lat, lon)
+    alerts.extend(restricted_alerts)
 
-    if dwell > 180:
-        alerts.append("Prolonged dwell")
-        safety_score -= 5
+    # 2️⃣ Check dwell time against safe zones
+    safe_zones = get_user_safe_zones(tourist_id)
+    for zone_lat, zone_lon, zone_type in safe_zones:
+        distance = haversine_distance(lat, lon, zone_lat, zone_lon)
+        if distance <= 0.05:  # within 50 meters
+            min_time, max_time = get_location_info(zone_type)
+            penalty = dwell_time_penalty(dwell_time, min_time, max_time)
+            if penalty:
+                alerts.append(f"⚠️ Dwell time anomaly at {zone_type} (spent {dwell_time} mins)")
 
-    # Vulnerable people: give preference
-    if age >= 60:
-        safety_score += 5
-    if disabilities != "none":
-        safety_score += 10
-    if health_conditions != "none":
-        safety_score += 10
+    # 3️⃣ Compute safety score
+    safety_score = max(0, 100 - len(alerts) * 25)  # each alert reduces score
+    risk_level = "Low" if safety_score > 75 else "Medium" if safety_score > 50 else "High"
 
-    # Cap the score between 0-100
-    safety_score = max(0, min(100, safety_score))
-
-    # Determine risk
-    risk = "Low"
-    if safety_score < 50:
-        risk = "High"
-    elif safety_score < 80:
-        risk = "Medium"
+    # 4️⃣ Insert alerts into database (model-generated, sent=1)
+    for alert_msg in alerts:
+        alert_type = "Restricted Zone" if "restricted" in alert_msg.lower() else "Dwell Time Anomaly"
+        insert_alert(
+            tourist_id,
+            alert_type,
+            alert_msg,
+            safety_score,
+            location_id,
+            status=1,   # default: completely dealt with
+            sent=1      # model-generated
+        )
 
     return {
-        "speed": speed,
-        "dwell": dwell,
+        "tourist_id": tourist_id,
+        "latitude": lat,
+        "longitude": lon,
         "alerts": alerts,
         "safety_score": safety_score,
-        "risk": risk
+        "risk_level": risk_level
     }
-
 
 
 def haversine_distance(lat1, lon1, lat2, lon2):

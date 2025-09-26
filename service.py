@@ -1,7 +1,5 @@
-# service.py
 from geo_zones import check_restricted
 from safe_zone_utils import get_user_safe_zones, get_location_info, dwell_time_penalty
-from shapely.geometry import Point
 import math
 
 def evaluate_tourist(data: dict):
@@ -16,8 +14,9 @@ def evaluate_tourist(data: dict):
 
     alerts = []
 
-    # 1️⃣ Check restricted zones
-    alerts.extend(check_restricted(lat, lon))
+    # 1️⃣ Check restricted zones (could be multiple zones)
+    restricted_alerts = check_restricted(lat, lon)
+    alerts.extend(restricted_alerts)
 
     # 2️⃣ Check dwell time against safe zones
     safe_zones = get_user_safe_zones(tourist_id)
@@ -28,10 +27,10 @@ def evaluate_tourist(data: dict):
             min_time, max_time = get_location_info(zone_type)
             penalty = dwell_time_penalty(dwell_time, min_time, max_time)
             if penalty:
-                alerts.append(f"⚠️ Dwell time anomaly at {zone_type}")
-    
+                alerts.append(f"⚠️ Dwell time anomaly at {zone_type} (spent {dwell_time} mins)")
+
     # 3️⃣ Compute safety score
-    safety_score = max(0, 100 - len(alerts) * 25)  # example scoring
+    safety_score = max(0, 100 - len(alerts) * 25)  # each alert reduces score
     risk_level = "Low" if safety_score > 75 else "Medium" if safety_score > 50 else "High"
 
     return {
